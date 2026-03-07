@@ -1,0 +1,11 @@
+# Versões do projeto
+
+- Docker Desktop: 29.2.1
+- Docker Compose: plugin atual do Docker Desktop
+- .NET SDK: 8.0.418
+- Java: 21
+- Spring Boot: 3.3.13
+- Node.js: 22.20.0
+- PostgreSQL: 16
+- Redis: 7
+- Kafka: 7.6.x (imagem Confluent Platform)
