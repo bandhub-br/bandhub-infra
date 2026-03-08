@@ -5,7 +5,8 @@
 - .NET SDK: 8.0.418
 - Java: 21
 - Spring Boot: 3.5.11
+- Angular 19
 - Node.js: 22.20.0
 - PostgreSQL: 16
 - Redis: 7
-- Kafka: 7.6.x (imagem Confluent Platform)
+- Kafka: 7.6.1 (imagem Confluent Platform)

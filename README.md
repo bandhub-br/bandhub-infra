@@ -136,6 +136,10 @@ http://localhost:8085
 - `notifications_db`
 - `users_db`
 
+```
+localhost:5432
+```
+
 ### Testando a conexão
 
 ```bash
