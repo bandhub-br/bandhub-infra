@@ -132,9 +132,10 @@ http://localhost:8085
 
 **Bancos de dados disponíveis:**
 
+- `users_db`
+- `bands_db`
 - `events_db`
 - `notifications_db`
-- `users_db`
 
 ```
 localhost:5432
