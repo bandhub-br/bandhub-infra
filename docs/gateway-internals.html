@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BandHub – Gateway por Baixo dos Panos &amp; Docker Completo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #c9d1d9;
+      line-height: 1.7;
+      padding: 2rem;
+    }
+
+    h1 { color: #e6edf3; font-size: 1.85rem; border-bottom: 2px solid #30363d; padding-bottom: .6rem; margin-bottom: 2rem; font-weight: 700; }
+    h2 { color: #e6edf3; font-size: 1.25rem; margin: 2.2rem 0 .8rem; display: flex; align-items: center; gap: .5rem; font-weight: 600; }
+    h3 { color: #8b949e; font-size: .95rem; margin: 1.2rem 0 .4rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+
+    .container { max-width: 1000px; margin: 0 auto; }
+
+    /* ── Cards ─────────────────────────────────────────── */
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 1.4rem 1.6rem;
+      margin-bottom: 1.4rem;
+    }
+
+    /* ── Code ──────────────────────────────────────────── */
+    pre {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      overflow-x: auto;
+      font-size: .82rem;
+      line-height: 1.65;
+      margin: .7rem 0;
+      position: relative;
+    }
+    code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; }
+    .ic {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: .1rem .4rem;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: .82em;
+      color: #f0883e;
+    }
+
+    /* syntax */
+    .kw  { color: #ff7b72; }
+    .str { color: #a5d6ff; }
+    .num-c { color: #79c0ff; }
+    .cmt { color: #8b949e; font-style: italic; }
+    .key { color: #e3b341; }
+    .fn  { color: #d2a8ff; }
+    .val { color: #79c0ff; }
+
+    /* ── Pipeline visual ───────────────────────────────── */
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      flex-wrap: wrap;
+      gap: 0;
+      margin: 1rem 0;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .pipe-step {
+      flex: 1;
+      min-width: 130px;
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      padding: .9rem .8rem;
+      text-align: center;
+      position: relative;
+    }
+    .pipe-step:last-child { border-right: none; }
+    .pipe-step.active { background: #1c2b3a; }
+    .pipe-step.pass   { background: #1a3a1a; }
+    .pipe-step .num { font-size: .7rem; color: #8b949e; display: block; margin-bottom: .2rem; }
+    .pipe-step .name { font-size: .8rem; font-weight: 600; color: #e6edf3; }
+    .pipe-step .desc { font-size: .7rem; color: #8b949e; margin-top: .2rem; }
+    .pipe-arrow { display: flex; align-items: center; color: #388bfd; font-size: 1.2rem; padding: 0 .1rem; }
+
+    /* ── Flow boxes ────────────────────────────────────── */
+    .flow { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+    .fbox {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: .5rem 1rem;
+      font-size: .82rem;
+      text-align: center;
+      min-width: 120px;
+    }
+    .fbox .lbl { font-size: .68rem; color: #8b949e; display: block; }
+    .fbox .port { font-size: .78rem; color: #58a6ff; font-weight: 700; }
+    .fbox.hi { border-color: #388bfd; background: #1c2b3a; }
+    .arr { color: #58a6ff; font-size: 1.3rem; user-select: none; }
+
+    /* ── Table ─────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; margin: .6rem 0; }
+    th { background: #21262d; color: #8b949e; font-weight: 600; text-align: left; padding: .5rem .9rem; border: 1px solid #30363d; }
+    td { padding: .5rem .9rem; border: 1px solid #30363d; vertical-align: top; }
+    td:first-child { color: #8b949e; white-space: nowrap; }
+
+    /* ── Steps ─────────────────────────────────────────── */
+    .steps { counter-reset: step; padding-left: 0; list-style: none; }
+    .steps li { counter-increment: step; display: flex; gap: .9rem; margin-bottom: .9rem; align-items: flex-start; }
+    .steps li::before {
+      content: counter(step);
+      background: #388bfd; color: #fff;
+      border-radius: 50%; min-width: 1.6rem; height: 1.6rem;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .78rem; font-weight: 700; flex-shrink: 0; margin-top: .2rem;
+    }
+
+    /* ── Notes ─────────────────────────────────────────── */
+    .note    { background: #1c2b3a; border-left: 4px solid #388bfd; border-radius: 0 8px 8px 0; padding: .8rem 1rem; font-size: .88rem; margin: .8rem 0; }
+    .warning { background: #2d1f04; border-left: 4px solid #e3b341; border-radius: 0 8px 8px 0; padding: .8rem 1rem; font-size: .88rem; margin: .8rem 0; }
+    .success { background: #1a3a1a; border-left: 4px solid #3fb950; border-radius: 0 8px 8px 0; padding: .8rem 1rem; font-size: .88rem; margin: .8rem 0; }
+
+    /* ── Badges ────────────────────────────────────────── */
+    .badge { display: inline-block; border-radius: 4px; padding: .15rem .55rem; font-size: .72rem; font-weight: 700; letter-spacing: .03em; }
+    .b-green  { background: #1a4731; color: #3fb950; }
+    .b-blue   { background: #1c2b3a; color: #58a6ff; }
+    .b-yellow { background: #2d1f04; color: #e3b341; }
+    .b-purple { background: #2d1f3a; color: #d2a8ff; }
+    .b-red    { background: #3a1a1a; color: #ff7b72; }
+
+    /* ── Section divider ───────────────────────────────── */
+    .divider { border: none; border-top: 1px solid #30363d; margin: 2.5rem 0; }
+
+    /* ── Ports grid ────────────────────────────────────── */
+    .ports-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .8rem; margin: .8rem 0; }
+    .port-card { background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: .8rem 1rem; text-align: center; }
+    .port-card .svc { font-size: .75rem; color: #8b949e; }
+    .port-card .num { font-size: 1.3rem; font-weight: 700; color: #58a6ff; }
+    .port-card .role { font-size: .68rem; color: #3fb950; margin-top: .1rem; }
+
+    /* ── Docker service cards ──────────────────────────── */
+    .svc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: .8rem 0; }
+    .svc-card { background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 1rem 1.1rem; }
+    .svc-card .svc-name { font-weight: 700; color: #e6edf3; font-size: .9rem; margin-bottom: .5rem; }
+    .svc-card .svc-tag { font-size: .7rem; }
+    .svc-card p { font-size: .82rem; color: #8b949e; margin-top: .3rem; }
+
+    /* Toc */
+    .toc { list-style: none; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+    .toc a { color: #58a6ff; text-decoration: none; font-size: .9rem; }
+    .toc a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>🎸 BandHub — Gateway por Baixo dos Panos &amp; Docker Completo</h1>
+
+  <!-- TOC -->
+  <div class="card">
+    <ul class="toc">
+      <li><a href="#yarp">1. O que é YARP e como funciona o Gateway</a></li>
+      <li><a href="#pipeline">2. Pipeline de uma requisição (step-by-step)</a></li>
+      <li><a href="#routing">3. Como o roteamento e os transforms funcionam</a></li>
+      <li><a href="#docker">4. Arquitetura Docker completa</a></li>
+      <li><a href="#startup">5. Como subir tudo com Docker</a></li>
+      <li><a href="#postman">6. Testando no Postman (dentro do Docker)</a></li>
+    </ul>
+  </div>
+
+  <hr class="divider" id="yarp" />
+
+  <!-- ── SEÇÃO 1 ─────────────────────────────────────────── -->
+  <h2>⚙️ 1. O que é YARP e como funciona o Gateway</h2>
+  <div class="card">
+    <p>O <strong>Gateway</strong> usa <strong>YARP (Yet Another Reverse Proxy)</strong>, uma biblioteca da Microsoft que transforma uma ASP.NET Core app em um proxy reverso de alta performance. É o único ponto de entrada externo da sua arquitetura.</p>
+
+    <h3>O que YARP faz por baixo dos panos</h3>
+    <ul class="steps">
+      <li>
+        <strong>Recebe a requisição HTTP</strong> — o cliente (Postman, front-end, app mobile) envia a requisição para o Gateway.
+      </li>
+      <li>
+        <strong>Route Matching</strong> — YARP percorre a lista de rotas configuradas no <span class="ic">appsettings.json</span> e encontra a primeira que bate com o path da requisição usando pattern matching (ex: <span class="ic">/bff/{**catch-all}</span>).
+      </li>
+      <li>
+        <strong>Transforms</strong> — antes de encaminhar, YARP aplica as transformações configuradas. No seu caso, a rota <span class="ic">bff-route</span> remove o prefixo <span class="ic">/bff</span> via <span class="ic">PathPattern: {"{**catch-all}"}</span>.
+      </li>
+      <li>
+        <strong>Load Balancing / Destination Selection</strong> — YARP seleciona um destino do cluster (no seu caso, só há um destino por cluster). Em produção com múltiplas instâncias, ele distribui requisições automaticamente.
+      </li>
+      <li>
+        <strong>Proxy da requisição</strong> — YARP faz um <em>HTTP forward</em> para o serviço de destino copiando headers, body e método. Retorna a resposta ao cliente.
+      </li>
+    </ul>
+
+    <h3>O Program.cs do Gateway (minimalista)</h3>
+    <pre><code><span class="kw">var</span> builder = WebApplication.<span class="fn">CreateBuilder</span>(args);
+
+builder.Services
+    .<span class="fn">AddReverseProxy</span>()                         <span class="cmt">// registra YARP no DI</span>
+    .<span class="fn">LoadFromConfig</span>(                             <span class="cmt">// carrega rotas do appsettings</span>
+        builder.Configuration.<span class="fn">GetSection</span>(<span class="str">"ReverseProxy"</span>));
+
+<span class="kw">var</span> app = builder.<span class="fn">Build</span>();
+app.<span class="fn">MapReverseProxy</span>();                          <span class="cmt">// registra o middleware do YARP</span>
+app.<span class="fn">Run</span>();</code></pre>
+
+    <p>Isso é tudo. YARP abstrai o proxy inteiro. Nenhum controller, nenhuma lógica de negócio — apenas roteamento.</p>
+  </div>
+
+  <hr class="divider" id="pipeline" />
+
+  <!-- ── SEÇÃO 2 ─────────────────────────────────────────── -->
+  <h2>🔁 2. Pipeline de uma requisição (step-by-step)</h2>
+  <div class="card">
+    <p>Exemplo: <span class="ic">POST http://localhost:5000/bff/accounts/login</span></p>
+
+    <div class="pipeline">
+      <div class="pipe-step active">
+        <span class="num">①</span>
+        <div class="name">Cliente</div>
+        <div class="desc">Postman / App</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step active">
+        <span class="num">②</span>
+        <div class="name">Gateway :5000</div>
+        <div class="desc">Route Match → Transform</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step active">
+        <span class="num">③</span>
+        <div class="name">BFF :5223</div>
+        <div class="desc">LoginEndpoint → Handler</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step active">
+        <span class="num">④</span>
+        <div class="name">AuthService :5290</div>
+        <div class="desc">POST /auth/login</div>
+      </div>
+      <div class="pipe-arrow">←</div>
+      <div class="pipe-step pass">
+        <span class="num">⑤</span>
+        <div class="name">Resposta</div>
+        <div class="desc">JWT → BFF → GW → Cliente</div>
+      </div>
+    </div>
+
+    <h3>Detalhamento de cada hop</h3>
+    <table>
+      <tr>
+        <th>Passo</th>
+        <th>Path recebido</th>
+        <th>Path encaminhado</th>
+        <th>O que acontece</th>
+      </tr>
+      <tr>
+        <td>Cliente → Gateway</td>
+        <td><span class="ic">/bff/accounts/login</span></td>
+        <td>—</td>
+        <td>YARP faz match na rota <strong>bff-route</strong></td>
+      </tr>
+      <tr>
+        <td>Gateway → BFF</td>
+        <td><span class="ic">/bff/accounts/login</span></td>
+        <td><span class="ic">/accounts/login</span></td>
+        <td>Transform remove o prefixo <span class="ic">/bff</span></td>
+      </tr>
+      <tr>
+        <td>BFF → AuthService</td>
+        <td><span class="ic">/accounts/login</span></td>
+        <td><span class="ic">/auth/login</span></td>
+        <td><span class="ic">AuthServiceClient.LoginAsync</span> chama via HttpClient</td>
+      </tr>
+      <tr>
+        <td>AuthService → BFF</td>
+        <td>—</td>
+        <td>—</td>
+        <td>Valida credenciais no Postgres, gera JWT + RefreshToken</td>
+      </tr>
+    </table>
+  </div>
+
+  <hr class="divider" id="routing" />
+
+  <!-- ── SEÇÃO 3 ─────────────────────────────────────────── -->
+  <h2>🗺️ 3. Como o roteamento e transforms funcionam</h2>
+  <div class="card">
+
+    <h3>Rotas configuradas no Gateway</h3>
+    <pre><code><span class="cmt">// appsettings.json → ReverseProxy → Routes</span>
+
+<span class="str">"auth-route"</span>:     { <span class="key">Path</span>: <span class="str">"/auth/{**catch-all}"</span>     } <span class="arr">→</span> AuthService  :5290  (sem transform)
+<span class="str">"accounts-route"</span>: { <span class="key">Path</span>: <span class="str">"/accounts/{**catch-all}"</span> } <span class="arr">→</span> UserService  :5293  (sem transform)
+<span class="str">"bands-route"</span>:    { <span class="key">Path</span>: <span class="str">"/bands/{**catch-all}"</span>    } <span class="arr">→</span> BandService  :5081  (sem transform)
+<span class="str">"bff-route"</span>:      { <span class="key">Path</span>: <span class="str">"/bff/{**catch-all}"</span>      } <span class="arr">→</span> BFF          :5223  (<span class="kw">remove prefixo /bff</span>)</code></pre>
+
+    <h3>Por que a rota bff-route tem transform e as outras não?</h3>
+    <div class="note">
+      As rotas diretas (<span class="ic">auth-route</span>, <span class="ic">accounts-route</span>, <span class="ic">bands-route</span>) preservam o path completo.
+      O AuthService já expõe <span class="ic">/auth/login</span>, então chamar <span class="ic">/auth/login</span> no Gateway funciona sem transform.<br/><br/>
+      Já o BFF expõe <span class="ic">/accounts/login</span> (sem prefixo). Se não houvesse o transform,
+      o Gateway enviaria <span class="ic">/bff/accounts/login</span> para o BFF e daria 404, porque o BFF não conhece o prefixo <span class="ic">/bff</span>.
+      O transform <span class="ic">PathPattern: {"{**catch-all}"}</span> captura tudo <em>após</em> <span class="ic">/bff/</span> e usa como path final.
+    </div>
+
+    <h3>Como o {**catch-all} funciona</h3>
+    <table>
+      <tr><th>URL recebida no Gateway</th><th>catch-all captura</th><th>URL enviada ao destino</th></tr>
+      <tr><td><span class="ic">/bff/accounts/login</span></td><td><span class="ic">accounts/login</span></td><td><span class="ic">/accounts/login</span></td></tr>
+      <tr><td><span class="ic">/bff/accounts/register</span></td><td><span class="ic">accounts/register</span></td><td><span class="ic">/accounts/register</span></td></tr>
+      <tr><td><span class="ic">/auth/login</span></td><td><span class="ic">login</span></td><td><span class="ic">/auth/login</span> (sem transform)</td></tr>
+    </table>
+
+    <h3>Como YARP substitui variáveis de ambiente (Docker)</h3>
+    <p>O .NET lê configuração de múltiplas fontes em ordem de prioridade. Variáveis de ambiente sobrescrevem o <span class="ic">appsettings.json</span> usando <span class="ic">__</span> como separador de seção:</p>
+    <pre><code><span class="cmt"># Equivalente a ReverseProxy.Clusters.bff-cluster.Destinations.destination1.Address</span>
+ReverseProxy__Clusters__bff-cluster__Destinations__destination1__Address=http://bandhub-bff:8080</code></pre>
+  </div>
+
+  <hr class="divider" id="docker" />
+
+  <!-- ── SEÇÃO 4 ─────────────────────────────────────────── -->
+  <h2>🐳 4. Arquitetura Docker completa</h2>
+  <div class="card">
+
+    <h3>Serviços criados</h3>
+    <div class="svc-grid">
+      <div class="svc-card">
+        <div class="svc-name">bandhub-gateway <span class="badge b-blue svc-tag">Gateway</span></div>
+        <p>Único ponto de entrada. Expõe a porta <strong>5000</strong> no host. YARP roteia para os outros serviços.</p>
+      </div>
+      <div class="svc-card">
+        <div class="svc-name">bandhub-bff <span class="badge b-purple svc-tag">BFF</span></div>
+        <p>Backend-for-Frontend. Orquestra chamadas a AuthService, UserService e BandService. Não exposto externamente.</p>
+      </div>
+      <div class="svc-card">
+        <div class="svc-name">bandhub-authservice <span class="badge b-yellow svc-tag">Auth</span></div>
+        <p>Emite e valida JWT tokens. Rate limiting de 5 req/min no login. Banco: <span class="ic">users_db</span>.</p>
+      </div>
+      <div class="svc-card">
+        <div class="svc-name">bandhub-userservice <span class="badge b-green svc-tag">Users</span></div>
+        <p>Gerencia contas de usuário. Banco: <span class="ic">users_db</span> (schema compartilhado com AuthService).</p>
+      </div>
+      <div class="svc-card">
+        <div class="svc-name">bandhub-bandservice <span class="badge b-red svc-tag">Bands</span></div>
+        <p>Gerencia bandas. Banco: <span class="ic">bands_db</span>.</p>
+      </div>
+      <div class="svc-card">
+        <div class="svc-name">migrate-userservice <span class="badge b-yellow svc-tag">Job</span></div>
+        <p>Roda <span class="ic">dotnet-ef database update</span> para <span class="ic">users_db</span> e encerra. Executa antes de authservice e userservice.</p>
+      </div>
+      <div class="svc-card">
+        <div class="svc-name">migrate-bandservice <span class="badge b-yellow svc-tag">Job</span></div>
+        <p>Roda <span class="ic">dotnet-ef database update</span> para <span class="ic">bands_db</span> e encerra. Executa antes de bandservice.</p>
+      </div>
+    </div>
+
+    <h3>Portas expostas no host</h3>
+    <div class="ports-grid">
+      <div class="port-card"><div class="svc">Gateway</div><div class="num">5000</div><div class="role">entrada externa</div></div>
+      <div class="port-card"><div class="svc">Postgres</div><div class="num">5432</div><div class="role">infra</div></div>
+      <div class="port-card"><div class="svc">Redis</div><div class="num">6379</div><div class="role">infra</div></div>
+      <div class="port-card"><div class="svc">Kafka</div><div class="num">9092</div><div class="role">infra</div></div>
+      <div class="port-card"><div class="svc">Kafka UI</div><div class="num">8085</div><div class="role">infra</div></div>
+    </div>
+
+    <div class="note">
+      Todos os serviços .NET se comunicam internamente via rede Docker usando o <strong>nome do container</strong> (ex: <span class="ic">http://bandhub-authservice:8080</span>).
+      Somente o Gateway expõe porta ao host. Os outros serviços não são acessíveis externamente.
+    </div>
+
+    <h3>Ordem de inicialização</h3>
+    <div class="flow">
+      <div class="fbox hi"><span class="lbl">1° — Infra</span>postgres<br/><span class="port">healthcheck</span></div>
+      <span class="arr">→</span>
+      <div class="fbox hi"><span class="lbl">2° — Migrations</span>migrate-user<br/>migrate-band<span class="port">service_completed</span></div>
+      <span class="arr">→</span>
+      <div class="fbox hi"><span class="lbl">3° — Services</span>auth / user / band<br/><span class="port">service_started</span></div>
+      <span class="arr">→</span>
+      <div class="fbox hi"><span class="lbl">4° — BFF</span>bandhub-bff<br/><span class="port">service_started</span></div>
+      <span class="arr">→</span>
+      <div class="fbox hi"><span class="lbl">5° — Gateway</span>bandhub-gateway<br/><span class="port">:5000</span></div>
+    </div>
+
+    <h3>Arquivos criados</h3>
+    <table>
+      <tr><th>Arquivo</th><th>Onde</th><th>Função</th></tr>
+      <tr><td><span class="ic">Dockerfile</span></td><td>Raiz de cada serviço</td><td>Build multi-stage: SDK para compilar, Runtime para rodar</td></tr>
+      <tr><td><span class="ic">Dockerfile.Migrations</span></td><td>UserService, BandService</td><td>SDK image + dotnet-ef → roda migrations e encerra</td></tr>
+      <tr><td><span class="ic">docker-compose.yml</span></td><td>bandhub-infra/docker</td><td>Orquestra todos os serviços com env vars e depends_on</td></tr>
+    </table>
+  </div>
+
+  <hr class="divider" id="startup" />
+
+  <!-- ── SEÇÃO 5 ─────────────────────────────────────────── -->
+  <h2>🚀 5. Como subir tudo com Docker</h2>
+  <div class="card">
+
+    <h3>Primeira vez (build das imagens + migrations)</h3>
+    <pre><code><span class="cmt"># Navegue para a pasta da infra</span>
+cd BandHub/bandhub-infra/docker
+
+<span class="cmt"># Build de todas as imagens e sobe tudo</span>
+docker compose up --build</code></pre>
+
+    <div class="note">
+      Na primeira execução, o Docker vai:<br/>
+      1. Compilar todas as imagens .NET (pode demorar alguns minutos)<br/>
+      2. Subir o Postgres e aguardar o healthcheck<br/>
+      3. Rodar as migrations (migrate-userservice e migrate-bandservice) e encerrar os containers<br/>
+      4. Subir os serviços de aplicação e o Gateway
+    </div>
+
+    <h3>Próximas execuções (sem rebuild)</h3>
+    <pre><code>docker compose up -d</code></pre>
+
+    <h3>Parar tudo</h3>
+    <pre><code>docker compose down</code></pre>
+
+    <h3>Parar e remover volumes (reset completo do banco)</h3>
+    <pre><code>docker compose down -v</code></pre>
+
+    <h3>Ver logs de um serviço específico</h3>
+    <pre><code><span class="cmt"># Logs do Gateway em tempo real</span>
+docker logs bandhub-gateway -f
+
+<span class="cmt"># Logs do AuthService</span>
+docker logs bandhub-authservice -f</code></pre>
+
+    <h3>Rebuild de apenas um serviço</h3>
+    <pre><code><span class="cmt"># Apenas rebuilda e reinicia o BFF</span>
+docker compose up --build bandhub-bff</code></pre>
+
+    <div class="warning">
+      <strong>Atenção:</strong> Os serviços .NET usam <span class="ic">UseHttpsRedirection()</span> no Program.cs.
+      Dentro do Docker (HTTP only), isso é seguro — sem um listener HTTPS configurado, o middleware não redireciona.
+      Os serviços se comunicam em HTTP puro dentro da rede Docker.
+    </div>
+  </div>
+
+  <hr class="divider" id="postman" />
+
+  <!-- ── SEÇÃO 6 ─────────────────────────────────────────── -->
+  <h2>📬 6. Testando no Postman (com Docker)</h2>
+  <div class="card">
+
+    <h3>Login via Gateway (rota completa via BFF)</h3>
+    <table>
+      <tr><th>Campo</th><th>Valor</th></tr>
+      <tr><td>Método</td><td><span class="badge b-green">POST</span></td></tr>
+      <tr><td>URL</td><td><span class="ic">http://localhost:5000/bff/accounts/login</span></td></tr>
+      <tr><td>Content-Type</td><td><span class="ic">application/json</span></td></tr>
+    </table>
+    <pre><code>{
+  <span class="key">"email"</span>: <span class="str">"usuario@email.com"</span>,
+  <span class="key">"password"</span>: <span class="str">"suaSenha"</span>
+}</code></pre>
+
+    <h3>Login direto no AuthService (bypassa o BFF)</h3>
+    <table>
+      <tr><th>Campo</th><th>Valor</th></tr>
+      <tr><td>Método</td><td><span class="badge b-green">POST</span></td></tr>
+      <tr><td>URL</td><td><span class="ic">http://localhost:5000/auth/login</span></td></tr>
+      <tr><td>Content-Type</td><td><span class="ic">application/json</span></td></tr>
+    </table>
+
+    <h3>Resposta esperada (200 OK)</h3>
+    <pre><code>{
+  <span class="key">"accountId"</span>:              <span class="str">"uuid..."</span>,
+  <span class="key">"name"</span>:                   <span class="str">"Seu Nome"</span>,
+  <span class="key">"email"</span>:                  <span class="str">"usuario@email.com"</span>,
+  <span class="key">"accountType"</span>:            <span class="str">"User"</span>,
+  <span class="key">"acessToken"</span>:             <span class="str">"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."</span>,
+  <span class="key">"acessTokenExpiraEm"</span>:     <span class="str">"2026-07-01T00:00:00Z"</span>,
+  <span class="key">"refreshToken"</span>:           <span class="str">"..."</span>,
+  <span class="key">"refreshTokenExpiraEm"</span>:   <span class="str">"2026-07-08T00:00:00Z"</span>
+}</code></pre>
+
+    <h3>Diferença: fora vs dentro do Docker</h3>
+    <table>
+      <tr><th>Cenário</th><th>URL no Postman</th><th>Quem precisa estar rodando</th></tr>
+      <tr>
+        <td><span class="badge b-yellow">Dev Local</span></td>
+        <td><span class="ic">http://localhost:5000/bff/accounts/login</span></td>
+        <td>Gateway + BFF + AuthService rodando com <span class="ic">dotnet run</span></td>
+      </tr>
+      <tr>
+        <td><span class="badge b-blue">Docker</span></td>
+        <td><span class="ic">http://localhost:5000/bff/accounts/login</span></td>
+        <td><span class="ic">docker compose up</span> — URL idêntica!</td>
+      </tr>
+    </table>
+    <div class="success">
+      A URL do Postman é <strong>sempre a mesma</strong>: <span class="ic">localhost:5000</span>. A diferença é apenas em como os serviços estão rodando por trás.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

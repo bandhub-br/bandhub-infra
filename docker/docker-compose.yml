@@ -76,6 +76,119 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
 
+  # ── Migration runners (run once and exit) ──────────────────────────────────
+  migrate-userservice:
+    build:
+      context: ../../BandHub.UserService
+      dockerfile: Dockerfile.Migrations
+    container_name: bandhub-migrate-userservice
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=bandhub-postgres;Port=5432;Database=users_db;Username=bandhub;Password=bandhub
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  migrate-bandservice:
+    build:
+      context: ../../BandHub.BandService
+      dockerfile: Dockerfile.Migrations
+    container_name: bandhub-migrate-bandservice
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=bandhub-postgres;Port=5432;Database=bands_db;Username=bandhub;Password=bandhub
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ── Application services ────────────────────────────────────────────────────
+  bandhub-authservice:
+    build:
+      context: ../../BandHub.AuthService
+      dockerfile: Dockerfile
+    container_name: bandhub-authservice
+    environment:
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__DefaultConnection=Host=bandhub-postgres;Port=5432;Database=users_db;Username=bandhub;Password=bandhub
+      - Jwt__Key=nfGVSc3OkM0KhjYzEJHhUT3GtNTuagEDatdqYXdxJye
+      - Jwt__Issuer=BandHub.AuthService
+      - Jwt__Audience=BandHub.AuthService
+    depends_on:
+      migrate-userservice:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  bandhub-userservice:
+    build:
+      context: ../../BandHub.UserService
+      dockerfile: Dockerfile
+    container_name: bandhub-userservice
+    environment:
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__DefaultConnection=Host=bandhub-postgres;Port=5432;Database=users_db;Username=bandhub;Password=bandhub
+      - Jwt__Key=nfGVSc3OkM0KhjYzEJHhUT3GtNTuagEDatdqYXdxJye
+      - Jwt__Issuer=BandHub.AuthService
+      - Jwt__Audience=BandHub.AuthService
+    depends_on:
+      migrate-userservice:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  bandhub-bandservice:
+    build:
+      context: ../../BandHub.BandService
+      dockerfile: Dockerfile
+    container_name: bandhub-bandservice
+    environment:
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__DefaultConnection=Host=bandhub-postgres;Port=5432;Database=bands_db;Username=bandhub;Password=bandhub
+      - Jwt__Key=nfGVSc3OkM0KhjYzEJHhUT3GtNTuagEDatdqYXdxJye
+      - Jwt__Issuer=BandHub.AuthService
+      - Jwt__Audience=BandHub.AuthService
+    depends_on:
+      migrate-bandservice:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  bandhub-bff:
+    build:
+      context: ../../BandHub.Bff
+      dockerfile: Dockerfile
+    container_name: bandhub-bff
+    environment:
+      - ASPNETCORE_HTTP_PORTS=8080
+      - Services__AuthServiceBaseUrl=http://bandhub-authservice:8080
+      - Services__UserServiceBaseUrl=http://bandhub-userservice:8080
+      - Services__BandServiceBaseUrl=http://bandhub-bandservice:8080
+      - Jwt__Key=nfGVSc3OkM0KhjYzEJHhUT3GtNTuagEDatdqYXdxJye
+      - Jwt__Issuer=BandHub.AuthService
+      - Jwt__Audience=BandHub.AuthService
+    depends_on:
+      - bandhub-authservice
+      - bandhub-userservice
+      - bandhub-bandservice
+    restart: unless-stopped
+
+  bandhub-gateway:
+    build:
+      context: ../../BandHub.Gateway
+      dockerfile: Dockerfile
+    container_name: bandhub-gateway
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ReverseProxy__Clusters__auth-cluster__Destinations__destination1__Address=http://bandhub-authservice:8080
+      - ReverseProxy__Clusters__accounts-cluster__Destinations__destination1__Address=http://bandhub-userservice:8080
+      - ReverseProxy__Clusters__bands-cluster__Destinations__destination1__Address=http://bandhub-bandservice:8080
+      - ReverseProxy__Clusters__bff-cluster__Destinations__destination1__Address=http://bandhub-bff:8080
+    depends_on:
+      - bandhub-bff
+      - bandhub-authservice
+      - bandhub-userservice
+      - bandhub-bandservice
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
