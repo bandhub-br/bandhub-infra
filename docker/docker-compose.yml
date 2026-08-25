@@ -164,9 +164,14 @@ services:
       - Jwt__Issuer=BandHub.AuthService
       - Jwt__Audience=BandHub.AuthService
     depends_on:
-      - bandhub-authservice
-      - bandhub-userservice
-      - bandhub-bandservice
+      migrate-userservice:
+        condition: service_completed_successfully
+      bandhub-authservice:
+        condition: service_started
+      bandhub-userservice:
+        condition: service_started
+      bandhub-bandservice:
+        condition: service_started
     restart: unless-stopped
 
   bandhub-gateway:
@@ -184,10 +189,16 @@ services:
       - ReverseProxy__Clusters__bff-cluster__Destinations__destination1__Address=http://bandhub-bff:8080
       - Cors__AllowedOrigins__0=http://localhost:4200
     depends_on:
-      - bandhub-bff
-      - bandhub-authservice
-      - bandhub-userservice
-      - bandhub-bandservice
+      migrate-userservice:
+        condition: service_completed_successfully
+      bandhub-bff:
+        condition: service_started
+      bandhub-authservice:
+        condition: service_started
+      bandhub-userservice:
+        condition: service_started
+      bandhub-bandservice:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
